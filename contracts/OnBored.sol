@@ -3,7 +3,6 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./IStrategy.sol";
-import "./strategies/LidoCurveConvexStrategy.sol";
 
 contract OnBored is Ownable {
     // mapping of stratigies, Strategy Identifier => Strategy Implements;
@@ -41,7 +40,7 @@ contract OnBored is Ownable {
     function invest(bytes32 strategyId, bytes memory params) public payable {
         require(stratigies[strategyId] != address(0), "strategy not registered");
 
-        LidoCurveConvexStrategy strategy = LidoCurveConvexStrategy(payable(investers[msg.sender][strategyId]));
+        IStrategy strategy = IStrategy(payable(investers[msg.sender][strategyId]));
         if (address(strategy) == address(0)) {
             bytes memory miniProxy = bytes.concat(bytes20(0x3D602d80600A3D3981F3363d3d373d3D3D363d73), bytes20(stratigies[strategyId]), bytes15(0x5af43d82803e903d91602b57fd5bf3));
             proxyCodeHash[strategyId] = keccak256(abi.encodePacked(miniProxy));
@@ -61,7 +60,7 @@ contract OnBored is Ownable {
     function recall(bytes32 strategyId) public {
         require(investers[msg.sender][strategyId] != address(0), "not invest this strategy");
 
-        LidoCurveConvexStrategy strategy = LidoCurveConvexStrategy(payable(investers[msg.sender][strategyId]));
+        IStrategy strategy = IStrategy(payable(investers[msg.sender][strategyId]));
         strategy.recall(msg.sender);
 
         emit Recalled(msg.sender, address(strategy));

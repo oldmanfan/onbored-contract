@@ -104,38 +104,7 @@ contract LidoCurveConvexStrategy is IStrategy {
     }
 
     function exchangeRewards(IConvex.PoolInfo memory poolInfo) internal {
-        // 1. exchange stETH to ETH
         IERC20 stETH = IERC20(Contract_Lido_stETH);
-        // uint256 stETHBalance = stETH.balanceOf(address(this));
-
-        // // 1.1 approve curve pool to operate stETH
-        // stETH.approve(Contract_Curve_ETH_stETH_Pool, stETHBalance);
-
-        // // 1.2. to estimate how many ETH return back.
-        // (bool success, bytes memory result) = Contract_Curve_ETH_stETH_Pool.staticcall(
-        //     abi.encodeWithSignature("get_dy(int128,int128,uint256)", 1, 0, stETHBalance)
-        // );
-        // require(success, string(result));
-
-        // // 1.3 do exchange
-        // uint256 min_dy = abi.decode(result, (uint256));
-        // (success, result) = Contract_Curve_ETH_stETH_Pool.call{value: 0}(
-        //     abi.encodeWithSignature(
-        //         "exchange(int128,int128,uint256,int256)",
-        //         1,
-        //         0,
-        //         stETHBalance,
-        //         type(uint256).max
-        //     )
-        // );
-        // if (!success) {
-        //     string memory s = _getRevertMsg(result);
-        //     console.log("exchange failed: %s", s);
-        // } else {
-        //     console.log("exchange success");
-        // }
-        // require(success, string(result));
-
         IERC20 crvRewards = IERC20(poolInfo.crvRewards);
         uint256 crvRewardsBalance = crvRewards.balanceOf(address(this));
 
@@ -151,15 +120,4 @@ contract LidoCurveConvexStrategy is IStrategy {
         console.log("cvxCRV: %s", cvxCRV.balanceOf(address(this)));
         console.log("stETH: %s", stETH.balanceOf(address(this)));
     }
-
-    function _getRevertMsg(bytes memory _returnData) internal pure returns (string memory) {
-    // If the _res length is less than 68, then the transaction failed silently (without a revert message)
-    if (_returnData.length < 68) return 'Transaction reverted silently';
-
-    assembly {
-        // Slice the sighash.
-        _returnData := add(_returnData, 0x04)
-    }
-    return abi.decode(_returnData, (string)); // All that remains is the revert string
-}
 }
