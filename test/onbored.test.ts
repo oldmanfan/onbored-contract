@@ -23,7 +23,7 @@ describe("OnBored", function() {
         let sid = await strategy.identifier();
         await onbored.connect(player1).invest(sid, ethers.utils.formatBytes32String("nothing"), {value: ethers.utils.parseEther("1.3")});
 
-        // await ForwardBlocks(7 * 86400 / 15); // forward 7 days
+        await ForwardBlocks(7 * 86400 / 15); // forward 7 days
 
         console.log(`player1 balance before: ${await ethers.provider.getBalance(player1.address)}`)
         await onbored.connect(player1).recall(sid);

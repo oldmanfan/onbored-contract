@@ -8,6 +8,9 @@ import "./ICurve.sol";
 import "./IConvex.sol";
 import "./IConvexRewards.sol";
 
+import "../exchanges/IUniswapV2Router02.sol";
+import "../exchanges/IWETH9.sol";
+
 import "hardhat/console.sol";
 
 contract LidoCurveConvexStrategy is IStrategy {
@@ -18,12 +21,11 @@ contract LidoCurveConvexStrategy is IStrategy {
     address public constant Contrace_Convex_Booster = 0xF403C135812408BFbE8713b5A23a04b3D48AAE31;
 
     address public constant Token_steCRV = 0x06325440D014e39736583c165C2963BA99fAf14E;
+    address public constant Token_cvxCRV = 0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7;
+
     address public constant Token_LDO = 0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32;
     address public constant Token_CRV = 0xD533a949740bb3306d119CC777fa900bA034cd52;
     address public constant Token_CVX = 0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B;
-
-    address public constant Token_cvxCRV = 0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7;
-
 
     uint256 public constant Convex_steCRV_Pool_Id = 25;
 
@@ -84,6 +86,7 @@ contract LidoCurveConvexStrategy is IStrategy {
         );
         require(success, string(result));
         // 3.2 remove liquidity from Curve
+        console.log("before remove liquidity: %s", address(this).balance);
         uint256 minAmount = abi.decode(result, (uint256));
         console.log("minAmount: %s", minAmount);
         (success, result) = Contract_Curve_ETH_stETH_Pool.call(
@@ -96,28 +99,61 @@ contract LidoCurveConvexStrategy is IStrategy {
         );
         require(success, string(result));
         // 4. exchange all rewards to ETH
-        exchangeRewards(poolInfo);
+        console.log("before exchange this: %s", address(this).balance);
+        exchangeRewards();
 
         // 5. send all balance of ETH to recipient
         console.log("now balance of this: %s", address(this).balance);
         payable(recipient).transfer(address(this).balance);
     }
 
-    function exchangeRewards(IConvex.PoolInfo memory poolInfo) internal {
-        IERC20 stETH = IERC20(Contract_Lido_stETH);
-        IERC20 crvRewards = IERC20(poolInfo.crvRewards);
-        uint256 crvRewardsBalance = crvRewards.balanceOf(address(this));
-
+    function exchangeRewards() internal {
         IERC20 lido = IERC20(Token_LDO);
         IERC20 crv = IERC20(Token_CRV);
         IERC20 cvx = IERC20(Token_CVX);
-        IERC20 cvxCRV = IERC20(Token_cvxCRV);
 
-        console.log("crvRewards: %s", crvRewardsBalance);
         console.log("lido: %s", lido.balanceOf(address(this)));
         console.log("crv: %s", crv.balanceOf(address(this)));
         console.log("cvx: %s", cvx.balanceOf(address(this)));
-        console.log("cvxCRV: %s", cvxCRV.balanceOf(address(this)));
-        console.log("stETH: %s", stETH.balanceOf(address(this)));
+
+        address[] memory tokens = new address[](3);
+        tokens[0] = Token_LDO;
+        tokens[1] = Token_CRV;
+        tokens[2] = Token_CVX;
+
+        UniswapV2Exchange(tokens);
+
+        console.log("lido2: %s", lido.balanceOf(address(this)));
+        console.log("crv2: %s", crv.balanceOf(address(this)));
+        console.log("cvx2: %s", cvx.balanceOf(address(this)));
+    }
+
+    address constant WETH_ADDR = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address constant UniswapV2Router_ADDR = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    function UniswapV2Exchange(address[] memory erc20Tokens) internal {
+        IUniswapV2Router02 router = IUniswapV2Router02(UniswapV2Router_ADDR);
+        uint256 totalSwaped;
+        for (uint i = 0; i < erc20Tokens.length; i++) {
+            IERC20 erc20 = IERC20(erc20Tokens[i]);
+            uint256 balance = erc20.balanceOf(address(this));
+
+            if (balance > 0) {
+                erc20.approve(UniswapV2Router_ADDR, balance);
+
+                address[] memory paths = new address[](2);
+                paths[0] = erc20Tokens[i];
+                paths[1] = WETH_ADDR;
+
+                uint256[] memory amounts = router.swapExactTokensForTokens(balance, 0, paths, address(this), block.timestamp + 1 minutes);
+                totalSwaped += amounts[amounts.length - 1];
+
+                console.log("swap %s : in %s, out: %s", erc20Tokens[i], balance, amounts[amounts.length - 1]);
+            }
+        }
+
+        if (totalSwaped > 0) {
+            IWETH9 weth = IWETH9(WETH_ADDR);
+            weth.withdraw(totalSwaped);
+        }
     }
 }
