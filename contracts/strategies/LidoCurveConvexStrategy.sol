@@ -42,6 +42,51 @@ contract LidoCurveConvexStrategy is IStrategy {
 
     function identifier() external pure returns(bytes32) { return keccak256("LidoCurveConvexStrategy"); }
 
+    function getEarnings() external view returns(uint256) {
+         IConvex convex = IConvex(Contrace_Convex_Booster);
+        IConvex.PoolInfo memory poolInfo = convex.poolInfo(Convex_steCRV_Pool_Id);
+
+        IERC20 steCRV = IERC20(poolInfo.lptoken);
+        uint256 steCRVBalance = steCRV.balanceOf(address(this));
+
+        (bool success, bytes memory result) = Contract_Curve_ETH_stETH_Pool.staticcall(
+            abi.encodeWithSignature("calc_withdraw_one_coin(uint256,int128)", steCRVBalance, 0)
+        );
+        if (!success) return 0;
+
+        uint256 minAmount = abi.decode(result, (uint256));
+
+        address[] memory tokens = new address[](3);
+        tokens[0] = Token_LDO;
+        tokens[1] = Token_CRV;
+        tokens[2] = Token_CVX;
+
+        uint256 earnings = minAmount + estimateRewardsEarning(tokens);
+        return earnings;
+    }
+
+    function estimateRewardsEarning(address[] memory erc20Tokens) public view returns(uint256) {
+        IUniswapV2Router02 router = IUniswapV2Router02(UniswapV2Router_ADDR);
+        uint256 totalEarnings;
+        for (uint i = 0; i < erc20Tokens.length; i++) {
+            IERC20 erc20 = IERC20(erc20Tokens[i]);
+            uint256 balance = erc20.balanceOf(address(this));
+
+            if (balance > 0) {
+                address[] memory paths = new address[](2);
+                paths[0] = erc20Tokens[i];
+                paths[1] = WETH_ADDR;
+
+                uint256[] memory amounts = router.getAmountsOut(balance, paths);
+                totalEarnings += amounts[amounts.length - 1];
+
+                console.log("earnings %s : in %s, out: %s", erc20Tokens[i], balance, amounts[amounts.length - 1]);
+            }
+        }
+
+        return totalEarnings;
+    }
+
     function invest(bytes calldata params) public override payable onlyMaster{
         (params); // to supress compile warning
         require(msg.value > 0, "should pay eth");

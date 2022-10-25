@@ -65,4 +65,10 @@ contract OnBored is Ownable {
 
         emit Recalled(msg.sender, address(strategy));
     }
+
+    function getEarnings(bytes32 strategyId) public view returns(uint256) {
+        if (investers[msg.sender][strategyId] == address(0)) return 0;
+
+        return  IStrategy(payable(investers[msg.sender][strategyId])).getEarnings();
+    }
 }
